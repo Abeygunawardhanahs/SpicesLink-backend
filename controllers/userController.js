@@ -2,7 +2,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// Register Buyer
+// ================== BUYER REGISTRATION ==================
 exports.registerBuyer = async (req, res) => {
   try {
     const {
@@ -19,8 +19,7 @@ exports.registerBuyer = async (req, res) => {
       return res.status(400).json({ message: 'Email already exists' });
     }
 
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const buyer = new User({
       role: 'Buyer',
@@ -28,7 +27,7 @@ exports.registerBuyer = async (req, res) => {
       shopOwnerName,
       shopLocation,
       contactNumber,
-      emailAddress,
+      emailAddress: emailAddress.toLowerCase(),
       password: hashedPassword,
     });
 
@@ -40,75 +39,101 @@ exports.registerBuyer = async (req, res) => {
   }
 };
 
-// Buyer Login
+// ================== BUYER LOGIN ==================
 exports.loginBuyer = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
-    }
 
     const user = await User.findOne({
       emailAddress: email.toLowerCase(),
       role: 'Buyer'
     });
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
+    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
+    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid email or password' });
 
     const token = jwt.sign(
-      {
-        userId: user._id,
-        emailAddress: user.emailAddress,
-        role: user.role,
-        shopOwnerName: user.shopOwnerName
-      },
+      { userId: user._id, emailAddress: user.emailAddress, role: user.role },
       process.env.JWT_SECRET || 'spiceslink-secret-key',
       { expiresIn: '7d' }
     );
 
-    await User.findByIdAndUpdate(user._id, {
-      lastLogin: new Date()
+    await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+
+    res.status(200).json({ token, user });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ================== SUPPLIER REGISTRATION ==================
+exports.registerSupplier = async (req, res) => {
+  try {
+    const { fullName, contactNumber, email, password } = req.body;
+
+    if (!fullName || !contactNumber || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const existingUser = await User.findOne({ emailAddress: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const supplier = new User({
+      role: 'Supplier',
+      shopOwnerName: fullName,
+      contactNumber,
+      emailAddress: email.toLowerCase(),
+      password: hashedPassword
     });
 
-    res.status(200).json({
+    await supplier.save();
+
+    res.status(201).json({
       success: true,
-      message: 'Login successful',
-      data: {
-        token,
-        user: {
-          id: user._id,
-          shopOwnerName: user.shopOwnerName,
-          shopName: user.shopName,
-          emailAddress: user.emailAddress,
-          role: user.role,
-          contactNumber: user.contactNumber,
-          shopLocation: user.shopLocation
-        }
+      message: 'Supplier registered successfully',
+      user: {
+        id: supplier._id,
+        fullName: supplier.shopOwnerName,
+        emailAddress: supplier.emailAddress,
+        contactNumber: supplier.contactNumber,
+        role: supplier.role
       }
     });
 
   } catch (error) {
-    console.error('Buyer login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error. Please try again later.'
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// ================== SUPPLIER LOGIN ==================
+exports.loginSupplier = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({
+      emailAddress: email.toLowerCase(),
+      role: 'Supplier'
     });
+    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid email or password' });
+
+    const token = jwt.sign(
+      { userId: user._id, emailAddress: user.emailAddress, role: user.role },
+      process.env.JWT_SECRET || 'spiceslink-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+
+    res.status(200).json({ token, user });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
