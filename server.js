@@ -29,26 +29,138 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   console.log('Origin:', req.headers.origin);
   if (req.body && Object.keys(req.body).length > 0) {
-    console.log('Body:', req.body);
+    // Don't log passwords for security
+    const logBody = { ...req.body };
+    if (logBody.password) logBody.password = '[HIDDEN]';
+    console.log('Body:', logBody);
   }
   next();
 });
 
 // Routes
-const userRoutes = require('./routes/userRoutes');
+const buyerRoutes = require('./routes/buyerRoutes');
+const supplierRoutes = require('./routes/supplierRoutes');
 const productRoutes = require('./routes/productRoutes');
 
-app.use('/api/users', userRoutes);
+// API Routes
+app.use('/api/buyers', buyerRoutes);
+app.use('/api/suppliers', supplierRoutes);
 app.use('/api/products', productRoutes);
+
+// Legacy route support (if you want to keep backward compatibility)
+//const userRoutes = require('./routes/userRoutes');
+//app.use('/api/users', userRoutes);
 
 // Test route
 app.get('/test', (req, res) => {
-  res.json({ message: 'Server is working!', timestamp: new Date().toISOString() });
+  res.json({ 
+    message: 'Server is working!', 
+    timestamp: new Date().toISOString(),
+    availableRoutes: {
+      buyers: '/api/buyers',
+      suppliers: '/api/suppliers',
+      products: '/api/products',
+      legacy_users: '/api/users'
+    }
+  });
 });
 
-// 404
+// Health check route
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+  });
+});
+
+// API info route
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'Fresh Food Supply Chain API',
+    version: '2.0',
+    endpoints: {
+      buyers: {
+        register: 'POST /api/buyers/register',
+        login: 'POST /api/buyers/login',
+        profile: 'GET /api/buyers/profile (auth required)',
+        updateProfile: 'PUT /api/buyers/profile (auth required)'
+      },
+      suppliers: {
+        register: 'POST /api/suppliers/register',
+        login: 'POST /api/suppliers/login',
+        profile: 'GET /api/suppliers/profile (auth required)',
+        updateProfile: 'PUT /api/suppliers/profile (auth required)',
+        search: 'GET /api/suppliers/search (buyer auth required)'
+      },
+      products: {
+        list: 'GET /api/products',
+        create: 'POST /api/products (supplier auth required)',
+        update: 'PUT /api/products/:id (supplier auth required)',
+        delete: 'DELETE /api/products/:id (supplier auth required)'
+      }
+    },
+    authentication: {
+      type: 'Bearer Token',
+      header: 'Authorization: Bearer <token>'
+    }
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('=== SERVER ERROR ===');
+  console.error(err.stack);
+  
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    const validationErrors = Object.values(err.errors).map(e => e.message);
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: validationErrors
+    });
+  }
+  
+  // JWT error
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+  
+  // MongoDB duplicate key error
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue)[0];
+    return res.status(400).json({
+      success: false,
+      message: `${field} already exists`
+    });
+  }
+  
+  // Default error
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { error: err.message })
+  });
+});
+
+// 404 handler
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ 
+    success: false,
+    message: 'Route not found',
+    availableRoutes: [
+      '/api/buyers',
+      '/api/suppliers', 
+      '/api/products',
+      '/test',
+      '/health',
+      '/api'
+    ]
+  });
 });
 
 // Connect to MongoDB
@@ -58,9 +170,17 @@ mongoose.connect(process.env.MONGO_URI, {
 })
 .then(() => {
   console.log('✅ MongoDB connected successfully');
+  console.log(`📊 Database: ${mongoose.connection.name}`);
+  
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
+    console.log('🔗 Available endpoints:');
+    console.log(`   • Buyers: http://localhost:${PORT}/api/buyers`);
+    console.log(`   • Suppliers: http://localhost:${PORT}/api/suppliers`);
+    console.log(`   • Products: http://localhost:${PORT}/api/products`);
+    console.log(`   • API Info: http://localhost:${PORT}/api`);
+    console.log(`   • Health Check: http://localhost:${PORT}/health`);
   });
 })
 .catch(err => {

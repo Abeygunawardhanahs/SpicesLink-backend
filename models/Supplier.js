@@ -1,33 +1,25 @@
 const mongoose = require('mongoose');
 
-// Buyer schema that matches your frontend form and controller expectations
-const buyerSchema = new mongoose.Schema({
-  shopName: {
+// This schema now perfectly matches your frontend registration form.
+const supplierSchema = new mongoose.Schema({
+  // Matches the 'fullName' state in your app
+  fullName: {
     type: String,
-    required: [true, 'Shop name is required'],
+    required: [true, 'Full name is required'],
     trim: true
   },
-  shopOwnerName: {
-    type: String,
-    required: [true, 'Owner name is required'],
-    trim: true
-  },
-  shopLocation: {
-    type: String,
-    required: [true, 'Shop location is required'],
-    trim: true
-  },
+  // Matches the 'contactNumber' state in your app
   contactNumber: {
     type: String,
     required: [true, 'Contact number is required'],
     validate: {
       validator: function(v) {
-        // Simple validation for 10 to 15 digits
         return /\d{10,15}/.test(v);
       },
-      message: 'Contact number must be between 10 and 15 digits.'
+      message: 'Contact number should be between 10-15 digits'
     }
   },
+  // Matches the 'email' state in your app
   email: {
     type: String,
     required: [true, 'Email is required'],
@@ -38,15 +30,15 @@ const buyerSchema = new mongoose.Schema({
       validator: function(v) {
         return /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(v);
       },
-      message: 'Please enter a valid email address.'
+      message: 'Please enter a valid email address'
     }
   },
+  // Matches the 'password' state in your app
   password: {
     type: String,
     required: [true, 'Password is required'],
     minlength: 6
   },
-  // --- Standard fields for user management ---
   lastLogin: {
     type: Date,
     default: null
@@ -64,8 +56,7 @@ const buyerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// FIXED: Index for faster queries - corrected field names
-buyerSchema.index({ email: 1 });        // ← Changed from 'emailAddress' to 'email'
-buyerSchema.index({ shopLocation: 1 });
+// Create an index on the 'email' field for faster login queries
+supplierSchema.index({ email: 1 });
 
-module.exports = mongoose.model('Buyer', buyerSchema);
+module.exports = mongoose.model('Supplier', supplierSchema);
