@@ -65,7 +65,7 @@ const buyerSchema = new mongoose.Schema({
 });
 
 // FIXED: Index for faster queries - corrected field names
-buyerSchema.index({ email: 1 });        // ← Changed from 'emailAddress' to 'email'
+//buyerSchema.index({ email: 1 });        // ← Changed from 'emailAddress' to 'email'
 buyerSchema.index({ shopLocation: 1 });
 
 module.exports = mongoose.model('Buyer', buyerSchema);

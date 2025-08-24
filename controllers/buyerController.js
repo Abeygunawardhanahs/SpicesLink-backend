@@ -147,7 +147,7 @@ exports.loginBuyer = async (req, res) => {
     const token = jwt.sign(
       { 
         userId: buyer._id,           // ← Changed from 'id' to 'userId'
-        emailAddress: buyer.email,   // ← Changed to match what frontend expects
+        email: buyer.email,   // ← Changed to match what frontend expects
         role: 'Buyer',              // ← Capitalized to match frontend expectations
         shopOwnerName: buyer.shopOwnerName  // ← Added this field as seen in server logs
       },
